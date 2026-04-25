@@ -1,34 +1,47 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>炸金花军师</title>
+    <title>我的情人</title>
     <style>
-        body { background: #000; color: #0f0; text-align: center; font-family: sans-serif; padding-top: 30px; }
-        button { width: 85%; padding: 15px; margin: 8px; font-size: 18px; background: #222; color: #0f0; border: 1px solid #0f0; border-radius: 8px; }
-        #res { font-size: 24px; color: #ff0; margin-top: 20px; border: 1px solid #0f0; padding: 15px; min-height: 40px; }
+        body { background: #000; color: #0f0; font-family: monospace; padding: 20px; }
+        #log { margin-bottom: 20px; line-height: 1.5; font-size: 18px; }
+        #input-line { display: flex; align-items: center; }
+        input { background: #000; border: none; color: #0f0; outline: none; font-size: 18px; flex: 1; padding-left: 5px; }
+        .prompt { color: #0f0; }
+        .output { color: #ffff00; margin: 10px 0; }
     </style>
 </head>
-<body>
-    <h3>♠️ 炸金花必胜军师 ♥️</h3>
-    <button onclick="c(1)">1: 豹子</button>
-    <button onclick="c(2)">2: 顺金</button>
-    <button onclick="c(3)">3: 金花</button>
-    <button onclick="c(4)">4: 顺子</button>
-    <button onclick="c(5)">5: 对子</button>
-    <button onclick="c(6)">6: 单张</button>
-    <div id="res">等待出牌...</div>
+<body onclick="document.getElementById('cmd').focus()">
+    <div id="log">
+        --- 炸金花：我的情人已启动 ---<br>
+        1: 豹子 | 2: 顺金 | 3: 金花 | 4: 顺子 | 5: 对子 | 6: 单张
+    </div>
+    <div id="input-line">
+        <span class="prompt">>>> 请看牌输入数字: </span>
+        <input type="text" id="cmd" autofocus onkeydown="run(event)">
+    </div>
+
     <script>
-        function c(v){
-            let s="";
-            if(v==1) s="必胜：梭哈！";
-            else if(v==2) s="极强：猛跟！";
-            else if(v==3) s="大牌：稳跟！";
-            else if(v==4) s="一般：谨慎！";
-            else if(v==5) s="小牌：偷鸡！";
-            else s="垃圾：必扔！";
-            document.getElementById("res").innerHTML = s;
+        function run(e) {
+            if (e.key === 'Enter') {
+                let val = document.getElementById('cmd').value;
+                let log = document.getElementById('log');
+                let res = "";
+                
+                if(val == "1") res = "萌萌跟";
+                else if(val == "2") res = "钓他";
+                else if(val == "3") res = "稳住";
+                else if(val == "4") res = "一般人，多就撤";
+                else if(val == "5") res = "反手开";
+                else if(val == "6") res = "对方没看就开";
+                else res = "未知指令";
+
+                log.innerHTML += `<br>>>> ${val}<br><div class="output">${res}</div>`;
+                document.getElementById('cmd').value = ""; // 清空输入框
+                window.scrollTo(0, document.body.scrollHeight); // 自动滚到底部
+            }
         }
     </script>
 </body>
