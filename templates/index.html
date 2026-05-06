@@ -1,90 +1,41 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html>
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>多人扎金花 - 严谨版</title>
+    <title>多人扎金花</title>
     <script src="https://socket.io"></script>
     <style>
-        body { background: #1a4a1a; color: white; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; }
-        #game-info { margin: 20px; text-align: center; border-bottom: 1px solid #555; padding-bottom: 10px; width: 100%; }
-        .table { display: flex; flex-wrap: wrap; justify-content: center; gap: 20px; padding: 20px; }
-        .player-card { border: 2px solid #ccc; border-radius: 10px; padding: 10px; width: 150px; text-align: center; background: rgba(0,0,0,0.3); }
-        .player-card.active { border-color: #ffeb3b; box-shadow: 0 0 15px #ffeb3b; }
-        .card { display: inline-block; width: 35px; height: 50px; background: white; color: black; border-radius: 4px; margin: 2px; font-weight: bold; line-height: 50px; vertical-align: middle; }
-        .card.hidden { background: #2c3e50; color: #2c3e50; }
-        .controls { position: fixed; bottom: 20px; background: rgba(0,0,0,0.8); padding: 20px; border-radius: 50px; display: flex; gap: 10px; }
-        button { padding: 10px 20px; border-radius: 20px; border: none; cursor: pointer; font-weight: bold; }
-        .btn-seen { background: #2196f3; color: white; }
-        .btn-call { background: #4caf50; color: white; }
-        .btn-compare { background: #ff9800; color: white; }
-        .btn-fold { background: #f44336; color: white; }
+        body { background: #076324; color: white; text-align: center; font-family: sans-serif; }
+        .player { border: 1px solid white; margin: 10px; padding: 10px; display: inline-block; border-radius: 8px; }
+        .card { background: white; color: black; display: inline-block; width: 40px; height: 60px; margin: 5px; border-radius: 5px; line-height: 60px; font-weight: bold; }
+        .controls { margin-top: 50px; }
+        button { padding: 10px 20px; font-size: 16px; cursor: pointer; }
     </style>
 </head>
 <body>
-
-    <div id="game-info">
-        <h2>当前底池: <span id="pot-val">0</span></h2>
-        <p id="status-msg">正在连接服务器...</p>
+    <h1>多人联机牌局</h1>
+    <div id="info">底池: <span id="pot">0</span></div>
+    <div id="players"></div>
+    <div class="controls">
+        <button onclick="act('seen')">看牌</button>
+        <button onclick="act('call')">跟注</button>
+        <button onclick="act('fold')">弃牌</button>
     </div>
-
-    <div class="table" id="player-list">
-        <!-- 玩家列表会通过JS动态刷新 -->
-    </div>
-
-    <div class="controls" id="action-btns" style="display: none;">
-        <button class="btn-seen" onclick="sendAction('seen')">看牌</button>
-        <button class="btn-call" onclick="sendAction('call')">跟注</button>
-        <button class="btn-compare" onclick="chooseTarget()">比牌</button>
-        <button class="btn-fold" onclick="sendAction('fold')">弃牌</button>
-    </div>
-
     <script>
         const socket = io();
-        let myName = "玩家_" + Math.floor(Math.random()*1000);
-        
-        // 1. 连接与加入房间
-        socket.on('connect', () => {
-            document.getElementById('status-msg').innerText = "已连接，正在加入房间...";
-            socket.emit('join', { name: myName, room: 'default' });
-        });
-
-        // 2. 接收服务器同步的状态 (脱敏后的数据)
+        const myName = "王子_" + Math.floor(Math.random()*100);
+        socket.on('connect', () => socket.emit('join', {name: myName, room: 'default'}));
         socket.on('update', (data) => {
-            document.getElementById('pot-val').innerText = data.pot;
-            const list = document.getElementById('player-list');
-            list.innerHTML = "";
-            
-            data.players.forEach((p, index) => {
-                const isActive = (index === data.turn);
-                const isMe = (p.name === myName);
-                
-                // 显示操作按钮：如果是我的回合
-                if(isMe && isActive) document.getElementById('action-btns').style.display = 'flex';
-                else if(isMe) document.getElementById('action-btns').style.display = 'flex'; // 为了演示，常开看牌按钮
-
-                let html = `
-                    <div class="player-card ${isActive ? 'active' : ''}">
-                        <div>${p.name} ${isMe ? '(我)' : ''}</div>
-                        <div>筹码: ${p.chips}</div>
-                        <div>状态: ${p.status}</div>
-                        <div style="margin-top:10px">
-                            ${p.hand.map(c => `<div class="card ${c === '?' ? 'hidden' : ''}">${c === '?' ? '' : c}</div>`).join('')}
-                        </div>
-                    </div>
-                `;
-                list.innerHTML += html;
-            });
+            document.getElementById('pot').innerText = data.pot;
+            document.getElementById('players').innerHTML = data.players.map(p => `
+                <div class="player">
+                    <div>${p.name} (${p.chips})</div>
+                    <div>${p.hand.map(h => `<div class="card">${h}</div>`).join('')}</div>
+                    <div>状态: ${p.status}</div>
+                </div>
+            `).join('');
         });
-
-        function sendAction(type) {
-            socket.emit('action', { type: type, room: 'default' });
-        }
-
-        function chooseTarget() {
-            let target = prompt("请输入你想比牌的玩家名称:");
-            if(target) socket.emit('action', { type: 'compare', target: target, room: 'default' });
-        }
+        function act(t) { socket.emit('action', {type: t}); }
     </script>
 </body>
 </html>
