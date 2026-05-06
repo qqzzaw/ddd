@@ -1,229 +1,163 @@
-from flask import Flask, request, make_response, redirect
-import random, uuid
+import random
 
-app = Flask(__name__)
+class ZhaJinHuaEngine:
+    # 牌型定义
+    TYPE_SPECIAL_235 = 0
+    TYPE_SINGLE = 1
+    TYPE_PAIR = 2
+    TYPE_STRAIGHT = 3
+    TYPE_FLUSH = 4
+    TYPE_FLUSH_STRAIGHT = 5
+    TYPE_LEOPARD = 6
 
-# --- 核心数据存储 ---
-gs = {
-    'ps': {}, 
-    'seats': [None]*10, 
-    'pot': 0, 
-    'turn': -1, 
-    'on': False, 
-    'cur_max_bet': 10, 
-    'log': "系统已就绪：私对比牌逻辑已加载",
-    'dealer_idx': 0,
-    'last_pk': None # 记录最近一次PK：{u1, u2, h1, h2, winner}
-}
+    def __init__(self):
+        self.points_map = {'2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, 
+                           '8': 8, '9': 9, 'T': 10, 'J': 11, 'Q': 12, 'K': 13, 'A': 14}
 
-def get_hand_score(h):
-    if not h: return (0, [], "等待")
-    v = sorted([c['v'] for c in h], reverse=True)
-    s = [c['s'] for c in h]
-    is_f = len(set(s)) == 1
-    is_s = (len(v)==3 and v-v==1 and v-v==1) or (set(v)=={14,3,2})
-    if len(set(v)) == 1: return (6, v, "类型A") 
-    if set(v) == {5, 3, 2} and not is_f: return (0.5, v, "类型S") 
-    if is_f and is_s: return (5, v, "类型B") 
-    if is_f: return (4, v, "类型C") 
-    if is_s: 
-        weight = [3, 2, 1] if set(v)=={14,3,2} else v
-        return (3, weight, "类型D") 
-    if len(set(v)) == 2:
-        pv = max(v, key=v.count)
-        return (2, [pv], "类型E") 
-    return (1, v, "类型F") 
-
-def card_to_html(c):
-    color = "#d32f2f" if c['s'] in "♥♦" else "#333"
-    return f'<span style="background:white; color:{color}; padding:2px 4px; border-radius:3px; margin:0 1px; font-weight:bold;">{c["s"]}{c["r"]}</span>'
-
-def render_html(my_uuid):
-    my_p = gs['ps'].get(my_uuid)
-    alive_others = [i for i, u in enumerate(gs['seats']) if u and u != my_uuid and not gs['ps'][u]['fold']]
-    
-    html = f"""
-    <!DOCTYPE html>
-    <html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-    <title>项目管理系统</title><style>
-        body {{ background:#1a1a1a; color:#eee; text-align:center; font-family:sans-serif; margin:0; padding-bottom:200px; }}
-        .header {{ background:#2c3e50; padding:15px; border-bottom:3px solid #27ae60; position:sticky; top:0; z-index:100; }}
-        .pk-box {{ background:#2980b9; color:white; padding:10px; margin:10px; border-radius:8px; font-size:13px; border:2px solid #fff; }}
-        .grid {{ display:grid; grid-template-columns:1fr 1fr; gap:10px; padding:10px; }}
-        .seat {{ background:#333; padding:12px; border-radius:10px; border:2px solid #444; position:relative; min-height:130px; }}
-        .is-me {{ border-color:#2ecc71 !important; border-width:2px; }}
-        .is-turn {{ border-color:#f1c40f !important; box-shadow:0 0 15px rgba(241,196,15,0.4); }}
-        .card-box {{ margin:5px 0; min-height:45px; }}
-        .mini-card {{ display:inline-block; width:28px; height:40px; background:white; color:black; margin:1px; line-height:40px; font-size:16px; border-radius:4px; font-weight:bold; }}
-        button {{ padding:10px; border-radius:5px; border:none; cursor:pointer; font-weight:bold; }}
-        .btn-bet {{ background:#f39c12; color:white; margin:2px; font-size:12px; min-width:55px; }}
-        .btn-pk {{ background:#2980b9; color:white; padding:8px; font-size:11px; margin-top:8px; width:90%; border-radius:20px; }}
-    </style>
-    <meta http-equiv="refresh" content="3"></head><body>
-    <div class="header">
-        <div style="font-size:18px; color:#f1c40f; font-weight:bold;">奖池: {gs['pot']} | 基准: {gs['cur_max_bet']}</div>
-        <div style="font-size:12px; color:#eee; margin-top:5px;">{gs['log']}</div>
-    </div>
-    """
-
-    # --- 核心改动：只有PK当事人能看到这个私有提示框 ---
-    if gs['last_pk'] and my_uuid in [gs['last_pk']['u1'], gs['last_pk']['u2']]:
-        p1_idx = gs['ps'][gs['last_pk']['u1']]['idx'] + 1
-        p2_idx = gs['ps'][gs['last_pk']['u2']]['idx'] + 1
-        p1_cards = "".join([card_to_html(c) for c in gs['last_pk']['h1']])
-        p2_cards = "".join([card_to_html(c) for c in gs['last_pk']['h2']])
-        winner_idx = gs['ps'][gs['last_pk']['winner']]['idx'] + 1
-        html += f"""
-        <div class="pk-box">
-            <b>【私有比牌详情】</b><br>
-            {p1_idx}号位: {p1_cards} <br>VS<br>
-            {p2_idx}号位: {p2_cards} <br>
-            结果：<b style="color:#f1c40f">{winner_idx}号位赢</b>
-        </div>
+    def get_hand_info(self, hand):
         """
-
-    html += '<div class="grid">'
-    for i in range(10):
-        uid = gs['seats'][i]
-        is_t = (gs['on'] and i == gs['turn'])
-        p = gs['ps'].get(uid)
-        cls = f"seat {'is-me' if uid==my_uuid else ''} {'is-turn' if is_t else ''}"
+        解析手牌并返回：(牌型等级, 排序后的点数列表)
+        hand: [('2', 'S'), ('3', 'H'), ('5', 'D')]
+        """
+        pts = sorted([self.points_map[c[0]] for c in hand], reverse=True)
+        suits = [c[1] for c in hand]
+        is_flush = len(set(suits)) == 1
         
-        if not uid:
-            html += f'<div class="{cls}">空位{i+1}<br><a href="/join?i={i}"><button style="margin-top:15px;background:#555;color:white;">选座</button></a></div>'
+        # 顺子判断 (包含 A23 最小顺子)
+        is_straight = False
+        if pts == [14, 3, 2]: # A23 逻辑
+            is_straight = True
+            compare_pts = [3, 2, 1] # 用于比较时设为最低
+        elif pts[0] - pts[1] == 1 and pts[1] - pts[2] == 1:
+            is_straight = True
+            compare_pts = pts
         else:
-            dealer_mark = "⭐" if i == gs['dealer_idx'] else ""
-            # 亮牌：只有自己看牌能见。游戏结束后的全员亮牌逻辑保持不变
-            show_cards = (uid == my_uuid and p['seen']) or (not gs['on'] and not p['fold'] and gs['pot'] == 0)
-            
-            if p['fold']:
-                status = "<span style='color:#777'>[已弃牌]</span>"
-            elif show_cards:
-                cards_html = "".join([f'<div class="mini-card" style="color:{"red" if c["s"] in "♥♦" else "black"}">{c["s"]}{c["r"]}</div>' for c in p['hand']])
-                res = get_hand_score(p['hand'])
-                status = f'<div class="card-box">{cards_html}</div><span style="color:#f1c40f;font-size:12px;">{res}</span>'
-            else:
-                status = '<div class="card-box"><div class="mini-card" style="background:#555;color:#555;">?</div><div class="mini-card" style="background:#555;color:#555;">?</div><div class="mini-card" style="background:#555;color:#555;">?</div></div>'
-            
-            html += f'<div class="{cls}"><b>{i+1}号位 {dealer_mark}</b><br>💰{p["chips"]}<br>{status}'
-            
-            # PK按钮
-            if gs['on'] and my_p and my_p['idx'] == gs['turn'] and uid != my_uuid and not p['fold']:
-                if my_p['seen'] and not p['seen']: mult = 4
-                elif not my_p['seen'] and p['seen']: mult = 1
-                else: mult = 2
-                cost = gs['cur_max_bet'] * mult
-                html += f'<br><a href="/pk?target={i}&cost={cost}"><button class="btn-pk">比牌({cost})</button></a>'
-            
-            if uid == my_uuid and not p['seen'] and gs['on'] and not p['fold']:
-                html += '<br><a href="/see"><button style="background:#3498db;color:white;margin-top:5px;font-size:11px;">👀 看牌</button></a>'
-            html += '</div>'
-    
-    html += "</div>"
-    if gs['on'] and my_p and my_p['idx'] == gs['turn'] and not my_p['fold']:
-        html += f'''<div style="background:#222;padding:15px;position:fixed;bottom:0;width:100%;border-top:2px solid #444;z-index:200;">
-            <div style="margin-bottom:10px; font-size:13px; color:#f1c40f;">需付: {gs['cur_max_bet'] * (2 if my_p['seen'] else 1)}</div>
-            <div style="display:flex; flex-wrap:wrap; justify-content:center; gap:5px; margin-bottom:12px;">'''
-        for v in [10, 20, 50, 100, 200, 500]:
-            if v >= gs['cur_max_bet']:
-                disp = v if not my_p['seen'] else v*2
-                html += f'<a href="/act?t=bet&v={v}"><button class="btn-bet">{disp}</button></a>'
-        html += f'''</div><a href="/act?t=fold" style="width:100%"><button style="background:#c0392b;color:white;width:90%">弃牌</button></a></div>'''
-    elif not gs['on']:
-        html += '<br><a href="/start"><button style="background:#27ae60;color:white;padding:15px 60px;font-size:18px;border-radius:30px;">新局开始</button></a>'
-    
-    return html + "</body></html>"
+            compare_pts = pts
 
-@app.route('/')
-def index():
-    uid = request.cookies.get('p_uuid') or str(uuid.uuid4())
-    resp = make_response(render_html(uid)); resp.set_cookie('p_uuid', uid); return resp
+        # 1. 豹子
+        if len(set(pts)) == 1:
+            return self.TYPE_LEOPARD, pts
+        # 2. 顺金
+        if is_flush and is_straight:
+            return self.TYPE_FLUSH_STRAIGHT, compare_pts
+        # 3. 金花
+        if is_flush:
+            return self.TYPE_FLUSH, pts
+        # 4. 顺子
+        if is_straight:
+            return self.TYPE_STRAIGHT, compare_pts
+        # 5. 对子
+        if len(set(pts)) == 2:
+            pair_val = max(set(pts), key=pts.count)
+            single_val = min(set(pts), key=pts.count)
+            return self.TYPE_PAIR, [pair_val, single_val]
+        # 6. 特殊 235 (不同花色)
+        if set(pts) == {5, 3, 2} and not is_flush:
+            return self.TYPE_SPECIAL_235, pts
+        # 7. 单张
+        return self.TYPE_SINGLE, pts
 
-@app.route('/join')
-def join():
-    uid, idx = request.cookies.get('p_uuid'), int(request.args.get('i'))
-    if gs['seats'][idx] is None:
-        for i, u in enumerate(gs['seats']):
-            if u == uid: gs['seats'][i] = None
-        gs['seats'][idx] = uid
-        gs['ps'][uid] = {'idx':idx, 'chips':5000, 'fold':False, 'seen':False, 'hand':[]}
-    return redirect('/')
+    def compare_hands(self, player_a, player_b, is_a_initiator=True):
+        """
+        核心比较逻辑
+        player_a/b 格式: {'hand': [...], 'name': 'xxx'}
+        返回: 赢家数据对象
+        """
+        type_a, val_a = self.get_hand_info(player_a['hand'])
+        type_b, val_b = self.get_hand_info(player_b['hand'])
 
-@app.route('/start')
-def start():
-    joined = [i for i, u in enumerate(gs['seats']) if u]
-    if len(joined) < 2: return redirect('/')
-    gs['on'], gs['pot'], gs['cur_max_bet'], gs['last_pk'] = True, 0, 10, None
-    deck = [{'s':s, 'r':r, 'v':v+2} for s in ['♠','♥','♣','♦'] for v,r in enumerate(['2','3','4','5','6','7','8','9','10','J','Q','K','A'])]
-    random.shuffle(deck)
-    for uid, p in gs['ps'].items():
-        if gs['seats'][p['idx']] == uid:
-            p.update({'hand':[deck.pop() for _ in range(3)], 'seen':False, 'fold':False})
-            p['chips'] -= 10; gs['pot'] += 10
-    order = sorted(joined)
-    gs['turn'] = order[(order.index(gs['dealer_idx']) + 1) % len(order)] if gs['dealer_idx'] in order else order
-    gs['log'] = "游戏开始"
-    return redirect('/')
+        # 规则细节：仅当场上有豹子时，235 > 豹子
+        if type_a == self.TYPE_SPECIAL_235 and type_b == self.TYPE_LEOPARD:
+            return player_a
+        if type_b == self.TYPE_SPECIAL_235 and type_a == self.TYPE_LEOPARD:
+            return player_b
+        
+        # 235若没遇到豹子，就是最小单张
+        type_a_final = self.TYPE_SINGLE if type_a == self.TYPE_SPECIAL_235 else type_a
+        type_b_final = self.TYPE_SINGLE if type_b == self.TYPE_SPECIAL_235 else type_b
 
-@app.route('/see')
-def see():
-    uid = request.cookies.get('p_uuid')
-    if uid in gs['ps']: gs['ps'][uid]['seen'] = True
-    return redirect('/')
+        if type_a_final > type_b_final: return player_a
+        if type_a_final < type_b_final: return player_b
 
-@app.route('/act')
-def act():
-    uid, p = request.cookies.get('p_uuid'), gs['ps'].get(request.cookies.get('p_uuid'))
-    t, v = request.args.get('t'), request.args.get('v')
-    if t == 'bet':
-        val = int(v); gs['cur_max_bet'] = val
-        cost = val * (2 if p['seen'] else 1)
-        p['chips'] -= cost; gs['pot'] += cost
-        gs['log'] = f"{p['idx']+1}号位下了{cost}"
-    else: p['fold'] = True
-    find_next(); return redirect('/')
+        # 牌型相同时比点数
+        for a, b in zip(val_a, val_b):
+            if a > b: return player_a
+            if a < b: return player_b
 
-@app.route('/pk')
-def pk():
-    uid, p = request.cookies.get('p_uuid'), gs['ps'].get(request.cookies.get('p_uuid'))
-    tid = int(request.args.get('target'))
-    t_uid = gs['seats'][tid]
-    target_p = gs['ps'][t_uid]
-    pk_cost = int(request.args.get('cost'))
-    p['chips'] -= pk_cost; gs['pot'] += pk_cost
-    
-    winner = uid if get_hand_score(p['hand']) > get_hand_score(target_p['hand']) else t_uid
-    # 235 杀 豹子特殊判定
-    s1, s2 = get_hand_score(p['hand']), get_hand_score(target_p['hand'])
-    if s1[0] == 6 and s2[0] == 0.5: winner = t_uid
-    if s1[0] == 0.5 and s2[0] == 6: winner = uid
-    
-    loser = t_uid if winner == uid else uid
-    gs['ps'][loser]['fold'] = True
-    
-    # --- 核心：记录私对比牌详情 ---
-    gs['last_pk'] = {
-        'u1': uid, 'u2': t_uid,
-        'h1': p['hand'], 'h2': target_p['hand'],
-        'winner': winner
-    }
-    gs['log'] = f"比牌结束：{p['idx']+1}号 vs {tid+1}号，一人出局"
-    
-    find_next(); return redirect('/')
+        # 细节：全等则发起比牌方输 (先手负)
+        return player_b if is_a_initiator else player_a
 
-def find_next():
-    alive = [i for i, u in enumerate(gs['seats']) if u and not gs['ps'][u]['fold']]
-    if len(alive) <= 1:
-        if alive:
-            w_idx = alive[0]
-            gs['ps'][gs['seats'][w_idx]]['chips'] += gs['pot']
-            gs['dealer_idx'] = w_idx
-            gs['log'] = f"🏆 赢家是{w_idx+1}号位"
-        gs['on'] = False
-    else:
-        try: ci = alive.index(gs['turn'])
-        except: ci = -1
-        gs['turn'] = alive[(ci + 1) % len(alive)]
+class GameSession:
+    def __init__(self, player_names, ante=10):
+        self.engine = ZhaJinHuaEngine()
+        self.players = [{
+            'name': name, 
+            'chips': 1000, 
+            'is_seen': False, 
+            'is_folded': False,
+            'is_out': False, # 比牌输掉的人
+            'hand': []
+        } for name in player_names]
+        self.pot = 0
+        self.ante = ante
+        self.current_unit = ante # 闷家单注基准
+        self.round_count = 1
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8888)
+    def start_game(self):
+        # 强制底注
+        for p in self.players:
+            p['chips'] -= self.ante
+            self.pot += self.ante
+        print(f"游戏开始，底池: {self.pot}")
+
+    def get_bet_amount(self, player, action_type="call"):
+        """
+        细节：看家投入必须是闷家的2倍
+        action_type: "call" (跟) 或 "compare" (比)
+        """
+        factor = 2 if player['is_seen'] else 1
+        if action_type == "compare":
+            return self.current_unit * factor * 2 # 比牌费是当前注的2倍
+        return self.current_unit * factor
+
+    def handle_compare(self, initiator_idx, target_idx):
+        """发起比牌流程"""
+        p1 = self.players[initiator_idx]
+        p2 = self.players[target_idx]
+        
+        # 1. 检查比牌门槛（细节：第2轮后，支付双倍费用）
+        if self.round_count < 2:
+            return "未到比牌轮数"
+        
+        cost = self.get_bet_amount(p1, "compare")
+        p1['chips'] -= cost
+        self.pot += cost
+        
+        # 2. 比较
+        winner = self.engine.compare_hands(p1, p2, is_a_initiator=True)
+        loser = p2 if winner == p1 else p1
+        loser['is_out'] = True
+        
+        # 3. 喜钱细节 (如果是豹子/顺金赢)
+        hand_type, _ = self.engine.get_hand_info(winner['hand'])
+        bonus_msg = ""
+        if hand_type >= self.engine.TYPE_FLUSH_STRAIGHT:
+            bonus_msg = "触发喜钱！其他玩家需额外支付一份筹码。"
+
+        return f"比牌结束，{winner['name']} 胜，{loser['name']} 出局。{bonus_msg}"
+
+# --- 模拟运行 ---
+game = GameSession(["玩家A", "玩家B", "玩家C"])
+game.start_game()
+
+# 模拟A闷牌，B看牌
+game.players[1]['is_seen'] = True 
+print(f"B看牌了，他跟注需要支付: {game.get_bet_amount(game.players[1])}")
+
+# 模拟发放特殊牌型测试逻辑
+game.players[0]['hand'] = [('A', 'S'), ('A', 'H'), ('A', 'D')] # 豹子AAA
+game.players[1]['hand'] = [('2', 'S'), ('3', 'H'), ('5', 'D')] # 不同花色235
+game.round_count = 2 # 进入第二轮
+
+result = game.handle_compare(1, 0) # 玩家B(235) 向 玩家A(豹子) 发起比牌
+print(result) # 预期输出：玩家B 胜 (235克制豹子)
