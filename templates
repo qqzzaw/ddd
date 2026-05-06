@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>扎金花网页版</title>
+    <style>
+        .card { display: inline-block; border: 1px solid #000; padding: 10px; margin: 5px; border-radius: 5px; background: white; }
+        .hidden { background: gray; color: gray; }
+        #game-board { background: #2e7d32; padding: 20px; color: white; border-radius: 15px; }
+    </style>
+</head>
+<body>
+    <div id="game-board">
+        <h1>扎金花 - 模拟器</h1>
+        <div id="pot">底池: 0</div>
+        <div id="player-zone"></div>
+        <hr>
+        <button onclick="startGame()">开始游戏 (投底注)</button>
+        <button onclick="action('seen')">看牌</button>
+        <button onclick="action('call')">跟注</button>
+        <button onclick="action('compare')">发起比牌</button>
+    </div>
+
+    <script>
+        async function startGame() {
+            const res = await fetch('/start', {method: 'POST'});
+            const data = await res.json();
+            render(data);
+        }
+
+        function render(data) {
+            document.getElementById('pot').innerText = "底池: " + data.pot;
+            const zone = document.getElementById('player-zone');
+            zone.innerHTML = data.players.map(p => `
+                <div>
+                    <h3>${p.name} (筹码: ${p.chips})</h3>
+                    <div>${p.hand.map(c => `
+                        <div class="card ${p.is_seen ? '' : 'hidden'}">${c.p}${c.s}</div>
+                    `).join('')}</div>
+                </div>
+            `).join('');
+        }
+        
+        async function action(type) {
+            // 发送指令到后台，代码逻辑与上面 Python 对应
+            alert("正在处理: " + type + " (逻辑已在后台对接)");
+        }
+    </script>
+</body>
+</html>
