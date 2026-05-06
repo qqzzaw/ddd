@@ -2,212 +2,223 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>10人炸金花房间 - 谁赢谁发牌</title>
+    <title>炸金花专业竞技场 - 图形牌面版</title>
     <style>
-        body { font-family: 'Microsoft YaHei', sans-serif; background-color: #1a472a; color: white; display: flex; flex-direction: column; align-items: center; margin: 0; padding-top: 20px; }
-        /* 牌桌设计 */
-        .table { position: relative; width: 900px; height: 500px; border: 15px solid #5d3a1a; border-radius: 250px; background-color: #2e7d32; box-shadow: inset 0 0 100px rgba(0,0,0,0.5), 0 10px 30px rgba(0,0,0,0.5); }
-        .pot-area { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; }
-        .pot-val { font-size: 32px; font-weight: bold; color: #ffeb3b; text-shadow: 2px 2px 4px #000; }
+        body { font-family: 'Microsoft YaHei'; background: #0f2d1a; color: white; margin: 0; display: flex; flex-direction: column; align-items: center; }
+        /* 牌桌 */
+        .table { position: relative; width: 960px; height: 540px; border: 12px solid #4d3319; border-radius: 270px; background: radial-gradient(#2e7d32, #1b5e20); margin-top: 40px; box-shadow: 0 20px 50px rgba(0,0,0,0.6); }
+        .pot-box { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; background: rgba(0,0,0,0.3); padding: 15px; border-radius: 50%; border: 2px dashed #fb8c00; }
         
-        /* 玩家头像与信息 */
-        .player { position: absolute; width: 120px; text-align: center; transition: 0.3s; padding: 10px; border-radius: 10px; background: rgba(0,0,0,0.2); }
-        .player.active { background: rgba(255, 235, 59, 0.3); box-shadow: 0 0 20px #ffeb3b; transform: scale(1.1); }
-        .player.folded { opacity: 0.4; filter: grayscale(0.8); }
-        .dealer-tag { background: #f44336; color: white; padding: 2px 6px; border-radius: 4px; font-size: 12px; margin-bottom: 5px; display: inline-block; }
-        
-        .chips { color: #81c784; font-weight: bold; }
-        .hand-display { font-size: 20px; letter-spacing: 2px; margin: 5px 0; min-height: 28px; }
+        /* 玩家席位 */
+        .seat { position: absolute; width: 140px; height: 120px; text-align: center; transition: 0.3s; cursor: pointer; border-radius: 10px; display: flex; flex-direction: column; justify-content: center; }
+        .seat.empty { border: 2px dashed #aaa; color: #aaa; }
+        .seat.active-turn { background: rgba(255, 235, 59, 0.2); box-shadow: 0 0 20px #ffeb3b; }
+        .seat.folded { opacity: 0.3; }
+        .dealer-flag { position: absolute; top: -10px; right: -10px; background: #f44336; border-radius: 50%; width: 28px; height: 28px; line-height: 28px; font-size: 14px; font-weight: bold; box-shadow: 0 2px 5px #000; z-index: 5; }
 
-        /* 交互按钮 */
-        .controls { margin-top: 40px; display: flex; gap: 20px; }
-        button { padding: 12px 30px; font-size: 18px; font-weight: bold; cursor: pointer; border: none; border-radius: 8px; box-shadow: 0 4px #999; }
-        button:active { box-shadow: 0 2px #666; transform: translateY(2px); }
-        .btn-see { background: #2196f3; color: white; }
-        .btn-call { background: #4caf50; color: white; }
-        .btn-fold { background: #e91e63; color: white; }
-        .btn-next { background: #ff9800; color: white; }
-        button:disabled { background: #555 !important; color: #888; cursor: not-allowed; box-shadow: none; }
+        /* 牌面样式 */
+        .card { display: inline-block; width: 35px; height: 50px; background: white; border-radius: 4px; color: black; font-weight: bold; font-size: 18px; line-height: 50px; text-align: center; margin: 0 2px; box-shadow: 1px 1px 3px rgba(0,0,0,0.5); }
+        .card.red { color: #d32f2f; }
+        .card.back { background: linear-gradient(45deg, #1565c0, #0d47a1); border: 2px solid white; color: transparent; }
 
-        .log-box { margin-top: 20px; width: 800px; height: 120px; background: rgba(0,0,0,0.5); border-radius: 8px; padding: 10px; overflow-y: auto; font-size: 14px; color: #ddd; border: 1px solid #444; }
+        /* 隐私遮罩层 */
+        #privateMask { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 100; flex-direction: column; align-items: center; justify-content: center; }
+        .big-card { width: 100px; height: 150px; font-size: 45px; line-height: 150px; margin: 0 15px; border-radius: 10px; }
+
+        /* 控制面板 */
+        .panel { margin-top: 20px; background: #222; padding: 20px; border-radius: 15px; display: flex; gap: 15px; align-items: center; border: 1px solid #444; }
+        button { padding: 12px 20px; border-radius: 6px; border: none; cursor: pointer; font-weight: bold; transition: 0.1s; }
+        .btn-chip { background: #fb8c00; color: white; box-shadow: 0 3px #e65100; }
+        .btn-chip:active { transform: translateY(2px); box-shadow: none; }
+        .btn-act { background: #2196f3; color: white; }
+        .btn-fold { background: #f44336; color: white; }
+        .btn-next { background: #4caf50; color: white; padding: 12px 40px; }
+        button:disabled { opacity: 0.3; cursor: not-allowed; }
+
+        .game-log { width: 900px; height: 70px; background: rgba(0,0,0,0.5); margin-top: 15px; padding: 10px; font-size: 13px; color: #81c784; overflow-y: auto; border: 1px solid #333; }
     </style>
 </head>
 <body>
 
-<h1>10人竞技房间 - 炸金花</h1>
-
 <div class="table" id="table">
-    <div class="pot-area">
-        <div style="font-size: 18px;">总奖池</div>
-        <div class="pot-val" id="potVal">0</div>
+    <div class="pot-box">
+        <div style="font-size: 14px; opacity: 0.8;">当前奖池</div>
+        <div id="potNum" style="font-size: 36px; color: #ffeb3b; font-weight: bold;">0</div>
     </div>
 </div>
 
-<div class="controls">
-    <button class="btn-see" id="btnSee" onclick="doSee()">👀 看牌</button>
-    <button class="btn-call" id="btnCall" onclick="doCall()">💰 跟注</button>
+<div class="panel">
+    <div style="display: flex; gap: 8px; align-items: center; border-right: 1px solid #444; padding-right: 15px;">
+        <span style="font-size: 14px; color: #aaa;">下注：</span>
+        <button class="btn-chip" onclick="doBet(10)">10</button>
+        <button class="btn-chip" onclick="doBet(20)">20</button>
+        <button class="btn-chip" onclick="doBet(50)">50</button>
+        <button class="btn-chip" onclick="doBet(100)">100</button>
+    </div>
+    <button class="btn-act" id="btnSee" onclick="showPrivateHand()">👀 独自看牌</button>
     <button class="btn-fold" id="btnFold" onclick="doFold()">🏳️ 弃牌</button>
-    <button class="btn-next" id="btnNext" onclick="startRound()">🔄 下一局</button>
+    <button class="btn-next" id="btnNext" onclick="newGame()">🔄 下一局</button>
 </div>
 
-<div class="log-box" id="gameLog">系统准备就绪。点击“下一局”开始...</div>
+<div id="privateMask">
+    <div style="font-size: 20px; margin-bottom: 40px; letter-spacing: 2px;">隐私区域：正在查看你的手牌</div>
+    <div id="myHandArea"></div>
+    <div id="myScoreText" style="color: #ffeb3b; font-size: 32px; margin-top: 20px; font-weight: bold;"></div>
+    <button onclick="hidePrivateHand()" style="margin-top: 60px; background: #fff; color: #000; padding: 15px 60px; font-size: 18px; border-radius: 50px;">记住了，返回桌牌</button>
+</div>
+
+<div class="game-log" id="log">点击位置加入玩家，庄家右手边先行...</div>
 
 <script>
-    let players = [];
+    let players = Array.from({length: 10}, (_, i) => ({ id: i, name: "玩家"+(i+1), chips: 10000, joined: false, hand: [], isSeen: false, isFolded: false, score: null }));
     let pot = 0;
-    let dealerIdx = 0;
-    let currentIdx = 0;
-    let baseBet = 100;
-    let isGameOver = true;
+    let dealerIdx = -1;
+    let currentIdx = -1;
+    let gameActive = false;
 
-    const suits = ['♠','♥','♣','♦'];
-    const ranks = ['2','3','4','5','6','7','8','9','10','J','Q','K','A'];
-
-    // 初始化10个席位
-    function initSeats() {
+    function init() {
         const table = document.getElementById('table');
-        for (let i = 0; i < 10; i++) {
-            players.push({
-                id: i,
-                name: "玩家 " + (i+1),
-                chips: 10000,
-                hand: [],
-                score: null,
-                isSeen: false,
-                isFolded: false
-            });
+        players.forEach((p, i) => {
             const angle = (i * 36) * (Math.PI / 180);
-            const x = 380 * Math.cos(angle) + 390;
-            const y = 180 * Math.sin(angle) + 200;
-
+            const x = 400 * Math.cos(angle) + 410;
+            const y = 200 * Math.sin(angle) + 210;
             const div = document.createElement('div');
-            div.className = 'player';
-            div.id = 'player-' + i;
-            div.style.left = x + 'px';
-            div.style.top = y + 'px';
+            div.className = 'seat empty';
+            div.id = `seat-${i}`;
+            div.style.left = x + 'px'; div.style.top = y + 'px';
+            div.innerHTML = "<div>➕</div><div style='font-size:12px'>加入</div>";
+            div.onclick = () => { if(!gameActive) { p.joined = !p.joined; updateUI(); } };
             table.appendChild(div);
-        }
-        updateUI();
+        });
     }
 
-    // 核心牌型逻辑
-    function getScore(hand) {
-        let v = hand.map(c => c.val).sort((a,b) => b-a);
-        let s = hand.map(c => c.suit);
-        let isFlush = new Set(s).size === 1;
-        let isStraight = (v[0]-v[1]===1 && v[1]-v[2]===1) || (v[0]===14 && v[1]===3 && v[2]===2);
-        let counts = {}; v.forEach(x => counts[x] = (counts[x]||0)+1);
-        let cVals = Object.values(counts);
-
-        if (cVals.includes(3)) return {lv: 6, name: "豹子", v};
-        if (v.includes(5) && v.includes(3) && v.includes(2) && !isFlush) return {lv: 0.5, name: "235", v};
-        if (isFlush && isStraight) return {lv: 5, name: "同花顺", v};
-        if (isFlush) return {lv: 4, name: "同花", v};
-        if (isStraight) return {lv: 3, name: "顺子", v: (v[0]===14? [3,2,1]:v)};
-        if (cVals.includes(2)) return {lv: 2, name: "对子", v};
-        return {lv: 1, name: "高牌", v};
+    function generateCardHTML(card, isBig = false) {
+        const isRed = card.s === '♥' || card.s === '♦';
+        const cls = isBig ? "card big-card" : "card";
+        return `<div class="${cls} ${isRed ? 'red' : ''}">${card.s}${card.r}</div>`;
     }
 
-    function startRound() {
-        isGameOver = false;
-        pot = 0;
+    function newGame() {
+        const joined = players.filter(p => p.joined);
+        if (joined.length < 2) return alert("房间至少需要2人才可开始");
+        
+        gameActive = true; pot = 0;
         let deck = [];
-        suits.forEach(s => ranks.forEach((r, i) => deck.push({suit:s, rank:r, val:i+2})));
+        ['♠','♥','♣','♦'].forEach(s => ['2','3','4','5','6','7','8','9','10','J','Q','K','A'].forEach((r, v) => deck.push({s, r, v: v+2})));
         deck.sort(() => Math.random() - 0.5);
 
         players.forEach(p => {
-            p.isFolded = false; p.isSeen = false;
-            p.hand = [deck.pop(), deck.pop(), deck.pop()];
-            p.score = getScore(p.hand);
-            p.chips -= baseBet; pot += baseBet;
+            if (p.joined) {
+                p.isFolded = false; p.isSeen = false;
+                p.hand = [deck.pop(), deck.pop(), deck.pop()];
+                p.score = calcScore(p.hand);
+                p.chips -= 50; pot += 50; 
+            }
         });
 
-        // 庄家右手边起手 (逆时针下一个)
-        currentIdx = (dealerIdx + 1) % 10;
-        addLog("🔔 庄家 " + (dealerIdx+1) + " 号发牌。从右手边 " + (currentIdx+1) + " 号开始行动。");
+        if (dealerIdx === -1 || !players[dealerIdx].joined) {
+            dealerIdx = players.findIndex(p => p.joined);
+        }
+        
+        findNextTurn(dealerIdx);
+        addLog(`📢 局开始！庄家:${dealerIdx+1}。底注50已扣除。`);
         updateUI();
     }
 
-    function doSee() {
+    function showPrivateHand() {
         let p = players[currentIdx];
         p.isSeen = true;
-        let handStr = p.hand.map(c => c.suit + c.rank).join(' ');
-        alert("【" + p.name + "】看牌：\n\n手牌：" + handStr + "\n牌型：" + p.score.name);
+        document.getElementById('myHandArea').innerHTML = p.hand.map(c => generateCardHTML(c, true)).join('');
+        document.getElementById('myScoreText').innerText = p.score.name;
+        document.getElementById('privateMask').style.display = 'flex';
+    }
+
+    function hidePrivateHand() {
+        document.getElementById('privateMask').style.display = 'none';
         updateUI();
     }
 
-    function doCall() {
+    function doBet(val) {
         let p = players[currentIdx];
-        let cost = p.isSeen ? baseBet * 2 : baseBet;
-        p.chips -= cost; pot += cost;
-        addLog(p.name + (p.isSeen?"(明)":"(暗)") + "跟注 " + cost);
-        moveNext();
+        let realCost = p.isSeen ? val * 2 : val;
+        p.chips -= realCost; pot += realCost;
+        addLog(`${p.name} ${p.isSeen?'[明]':'[暗]'} 下注: ${realCost}`);
+        findNextTurn(currentIdx);
+        updateUI();
     }
 
     function doFold() {
         players[currentIdx].isFolded = true;
-        addLog(players[currentIdx].name + " 弃牌。");
-        moveNext();
-    }
-
-    function moveNext() {
-        let alive = players.filter(p => !p.isFolded);
-        if (alive.length === 1) {
-            settle(alive[0]); return;
-        }
-        do {
-            currentIdx = (currentIdx + 1) % 10;
-        } while (players[currentIdx].isFolded);
-        
-        // 简易逻辑：全场轮流一次即自动比牌(实际可设多轮)
-        if (currentIdx === (dealerIdx + 1) % 10 && pot > 3000) {
-            autoSettle(); return;
-        }
+        addLog(players[currentIdx].name + " 弃牌退出本局");
+        findNextTurn(currentIdx);
         updateUI();
     }
 
-    function autoSettle() {
-        let survivors = players.filter(p => !p.isFolded);
-        let hasLeo = survivors.some(p => p.score.lv === 6);
-        let has235 = survivors.some(p => p.score.lv === 0.5);
-        let winner = (hasLeo && has235) ? survivors.find(p => p.score.lv === 0.5) : survivors.sort((a,b) => b.score.lv - a.score.lv || b.score.v[0] - a.score.v[0])[0];
-        settle(winner);
+    function findNextTurn(start) {
+        let next = (start + 1) % 10;
+        let count = 0;
+        while ((!players[next].joined || players[next].isFolded) && count < 10) {
+            next = (next + 1) % 10;
+            count++;
+        }
+        currentIdx = next;
+        let survivors = players.filter(p => p.joined && !p.isFolded);
+        if (survivors.length === 1) settle(survivors);
     }
 
     function settle(winner) {
         winner.chips += pot;
-        addLog("🏆 赢家是 " + winner.name + "，赢取奖池 " + pot);
-        dealerIdx = winner.id; // 谁赢谁发牌
+        addLog(`🏆 赢家: ${winner.name}！牌型:${winner.score.name}，收米 ${pot}。`);
+        dealerIdx = winner.id;
+        gameActive = false;
         pot = 0;
-        isGameOver = true;
         updateUI();
     }
 
+    function calcScore(hand) {
+        let v = hand.map(c => c.v).sort((a,b) => b-a);
+        let s = hand.map(c => c.s);
+        let flush = new Set(s).size === 1;
+        let straight = (v-v===1 && v-v===1) || (JSON.stringify(v)==='');
+        if (new Set(v).size === 1) return {lv:6, name:"豹子", v};
+        if (v.includes(5) && v.includes(3) && v.includes(2) && !flush) return {lv:0.5, name:"235(杀豹)", v};
+        if (flush && straight) return {lv:5, name:"同花顺", v};
+        if (flush) return {lv:4, name:"同花", v};
+        if (straight) return {lv:3, name:"顺子", v: (JSON.stringify(v)===''?:v)};
+        if (new Set(v).size === 2) return {lv:2, name:"对子", v};
+        return {lv:1, name:"高牌", v};
+    }
+
     function updateUI() {
-        document.getElementById('potVal').innerText = pot;
-        players.forEach(p => {
-            const div = document.getElementById('player-' + p.id);
-            div.className = 'player' + (p.id === currentIdx && !isGameOver ? ' active' : '') + (p.isFolded ? ' folded' : '');
-            let cardStr = p.isSeen ? p.hand.map(c => c.suit + c.rank).join(' ') : '🎴🎴🎴';
-            div.innerHTML = `
-                ${p.id === dealerIdx ? '<div class="dealer-tag">庄</div>' : ''}
-                <div style="font-weight:bold">${p.name}</div>
-                <div class="hand-display">${p.isFolded ? '---' : cardStr}</div>
-                <div class="chips">💰 ${p.chips}</div>
-            `;
+        document.getElementById('potNum').innerText = pot;
+        players.forEach((p, i) => {
+            const el = document.getElementById(`seat-${i}`);
+            if (!p.joined) {
+                el.className = 'seat empty'; el.innerHTML = "<div>➕</div><div style='font-size:12px'>加入</div>";
+            } else {
+                el.className = `seat ${i===currentIdx && gameActive ? 'active-turn':''} ${p.isFolded?'folded':''}`;
+                let cardHTML = p.isFolded ? '❌' : (p.isSeen ? '<div class="card back"></div>'.repeat(3) : '<div class="card back"></div>'.repeat(3));
+                // 如果已看牌，在头像上加个小眼睛标记
+                let seenMark = p.isSeen ? '<span style="font-size:12px;color:#ffeb3b">已看牌</span>' : '<span style="font-size:12px;color:#aaa">未看牌</span>';
+                el.innerHTML = `
+                    ${i===dealerIdx?'<div class="dealer-flag">庄</div>':''}
+                    <div style="font-size:14px; font-weight:bold; margin-bottom:5px">${p.name}</div>
+                    <div style="display:flex; justify-content:center; margin-bottom:5px">${cardHTML}</div>
+                    <div style="color:#81c784; font-weight:bold; font-size:14px">💰${p.chips}</div>
+                    ${seenMark}
+                `;
+            }
         });
-        // 按钮状态切换
-        const btns = ['btnSee', 'btnCall', 'btnFold'];
-        btns.forEach(id => document.getElementById(id).disabled = isGameOver);
-        document.getElementById('btnNext').disabled = !isGameOver;
+        document.getElementById('btnNext').disabled = gameActive;
+        document.querySelectorAll('.btn-chip, .btn-act, .btn-fold').forEach(b => b.disabled = !gameActive);
     }
 
     function addLog(m) {
-        const log = document.getElementById('gameLog');
-        log.innerHTML = "• " + m + "<br>" + log.innerHTML;
+        const l = document.getElementById('log');
+        l.innerHTML = "• " + m + "<br>" + l.innerHTML;
     }
 
-    initSeats();
+    init();
 </script>
 </body>
 </html>
